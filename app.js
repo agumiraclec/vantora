@@ -10,10 +10,16 @@
   var CAP_C = 'M36 16 V27';
   var $ = function (id) { return document.getElementById(id); };
 
+  var MAX_PICKUPS = 3;
+  var PHOTO_MAX_SIDE = 800;          // same size the app uses
+  var PHOTO_MAX_CHARS = 440000;      // the Worker refuses anything bigger
+
   var registered = {};      // children registered in this visit (blocks same name + phone twice)
   var submitting = false;   // blocks double taps
   var card = null;          // the card currently shown
   var requestId = newRequestId();   // same ID on a retry, so a dropped network never creates a second child
+  var pickups = [];         // authorized pickup persons being typed in the form
+  var pickupSeq = 0;
 
   /* ---------- which organization is this link for? The secret token (?t=...) decides, the server checks it ---------- */
   var TOKEN_RE = /^[a-z][a-z0-9]{19}$/;
@@ -114,6 +120,13 @@
   }
   function dupKey(name, phone) { return String(name || '').trim().toLowerCase() + '|' + phoneKey(phone); }
 
+  function make(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  }
+
   /* ---------- form behaviour ---------- */
   $('dob').addEventListener('change', function () {
     var v = $('dob').value;
@@ -130,6 +143,177 @@
 
   function val(id) { return $(id).value.trim(); }
 
+  /* ---------- authorized pickup persons ---------- */
+  function pickupBlank(e) {
+    return !e.name.value.trim() && !e.phone.value.trim() && !e.photo;
+  }
+
+  function updatePickupUi() {
+    for (var i = 0; i < pickups.length; i++) {
+      pickups[i].title.textContent = 'Pickup person ' + (i + 1);
+    }
+    var btn = $('addPickup');
+    btn.textContent = 'Add pickup person (' + pickups.length + '/' + MAX_PICKUPS + ')';
+    btn.classList.toggle('hidden', pickups.length >= MAX_PICKUPS);
+  }
+
+  // Reads the chosen picture, shrinks it (max 800 px, JPEG) and gives back a data: URL
+  function readPhoto(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || !/^image\//i.test(file.type || '')) { reject(new Error('Please choose a photo.')); return; }
+      if (file.size > 20 * 1024 * 1024) { reject(new Error('That photo is too large. Please choose a smaller one.')); return; }
+      var fr = new FileReader();
+      fr.onerror = function () { reject(new Error('Could not read that photo. Please try another one.')); };
+      fr.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error('Could not read that photo. Please try another one.')); };
+        img.onload = function () {
+          var scale = Math.min(1, PHOTO_MAX_SIDE / Math.max(img.width, img.height));
+          var c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * scale));
+          c.height = Math.max(1, Math.round(img.height * scale));
+          var ctx = c.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, c.width, c.height);
+          ctx.drawImage(img, 0, 0, c.width, c.height);
+          var q = [0.7, 0.5, 0.35];
+          for (var i = 0; i < q.length; i++) {
+            var url = c.toDataURL('image/jpeg', q[i]);
+            if (url.length - url.indexOf(',') - 1 <= PHOTO_MAX_CHARS) { resolve(url); return; }
+          }
+          reject(new Error('That photo is too large. Please choose a smaller one.'));
+        };
+        img.src = fr.result;
+      };
+      fr.readAsDataURL(file);
+    });
+  }
+
+  function addPickup() {
+    if (pickups.length >= MAX_PICKUPS) return;
+    var n = ++pickupSeq;
+
+    var box = make('div', 'pcard');
+    var head = make('div', 'phead');
+    var title = make('span', 'ptitle');
+    var rm = make('button', 'textbtn', 'Remove');
+    rm.type = 'button';
+    head.appendChild(title);
+    head.appendChild(rm);
+    box.appendChild(head);
+
+    var body = make('div', 'pbody');
+
+    var photoBtn = make('button', 'pphoto');
+    photoBtn.type = 'button';
+    photoBtn.setAttribute('aria-label', 'Add photo of this pickup person (required)');
+    var photoTxt = make('span', '', 'Add photo *');
+    var photoImg = make('img', 'hidden');
+    photoImg.alt = 'Photo of the pickup person';
+    photoBtn.appendChild(photoTxt);
+    photoBtn.appendChild(photoImg);
+
+    var file = document.createElement('input');
+    file.type = 'file';
+    file.accept = 'image/*';
+    file.className = 'hidden';
+    file.setAttribute('aria-hidden', 'true');
+    file.tabIndex = -1;
+
+    var fields = make('div', 'pfields');
+    var nameLbl = make('label', '', 'Full name *');
+    nameLbl.setAttribute('for', 'pn' + n);
+    var name = document.createElement('input');
+    name.id = 'pn' + n;
+    name.type = 'text';
+    name.autocomplete = 'off';
+    name.setAttribute('autocapitalize', 'words');
+    name.maxLength = 80;
+    var phoneLbl = make('label', '', 'Phone (if available)');
+    phoneLbl.setAttribute('for', 'pp' + n);
+    var phone = document.createElement('input');
+    phone.id = 'pp' + n;
+    phone.type = 'tel';
+    phone.setAttribute('inputmode', 'tel');
+    phone.autocomplete = 'off';
+    phone.maxLength = 20;
+    fields.appendChild(nameLbl);
+    fields.appendChild(name);
+    fields.appendChild(phoneLbl);
+    fields.appendChild(phone);
+
+    body.appendChild(photoBtn);
+    body.appendChild(fields);
+    box.appendChild(body);
+    box.appendChild(file);
+
+    var entry = { box: box, title: title, name: name, phone: phone, photo: '', photoBtn: photoBtn, photoImg: photoImg, photoTxt: photoTxt };
+
+    photoBtn.addEventListener('click', function () { file.click(); });
+    file.addEventListener('change', function () {
+      var f = file.files && file.files[0];
+      file.value = '';
+      if (!f) return;
+      clearError();
+      photoTxt.textContent = 'Please wait…';
+      readPhoto(f).then(function (url) {
+        entry.photo = url;
+        photoImg.src = url;
+        photoImg.classList.remove('hidden');
+        photoTxt.classList.add('hidden');
+        photoBtn.classList.add('has-photo');
+      }).catch(function (e) {
+        photoTxt.textContent = entry.photo ? '' : 'Add photo *';
+        showError((e && e.message) || 'Could not use that photo.');
+      });
+    });
+    rm.addEventListener('click', function () {
+      var i = pickups.indexOf(entry);
+      if (i !== -1) pickups.splice(i, 1);
+      box.remove();
+      updatePickupUi();
+    });
+
+    pickups.push(entry);
+    $('pickups').appendChild(box);
+    updatePickupUi();
+    name.focus();
+  }
+
+  $('addPickup').addEventListener('click', addPickup);
+
+  // Same rules as the app: name (3+ letters) and photo needed, phone optional (10-13 digits)
+  function checkPickups() {
+    var n = 0;
+    for (var i = 0; i < pickups.length; i++) {
+      var p = pickups[i];
+      if (pickupBlank(p)) continue;
+      n++;
+      var lbl = 'Pickup person ' + n + ': ';
+      if (p.name.value.trim().length < 3) return [p.name, lbl + 'enter the full name.'];
+      if (!p.photo) return [p.photoBtn, lbl + 'add a photo.'];
+      var ph = p.phone.value.trim();
+      if (ph) {
+        var digits = ph.replace(/\D/g, '');
+        if (digits.length < 10 || digits.length > 13) return [p.phone, lbl + 'phone number is not valid (or leave it blank).'];
+      }
+    }
+    return null;
+  }
+
+  function pickupPayload() {
+    var out = [];
+    pickups.forEach(function (p) {
+      if (pickupBlank(p)) return;
+      out.push({
+        name: p.name.value.trim(),
+        phone: p.phone.value.trim(),
+        photoBase64: p.photo.split(',')[1] || ''
+      });
+    });
+    return out;
+  }
+
   function check() {
     if (!val('childName')) return ['childName', 'Child name is required.'];
     var dob = $('dob').value;
@@ -142,6 +326,8 @@
     if (val('parentPhone').replace(/\D/g, '').length < 10) return ['parentPhone', 'Enter a valid phone number.'];
     var em = val('parentEmail');
     if (em && !EMAIL_RE.test(em)) return ['parentEmail', 'Please enter a valid email address.'];
+    var pk = checkPickups();
+    if (pk) return [pk[0], pk[1]];
     if (!val('securityQuestion')) return ['securityQuestion', 'Security question is required.'];
     if (!$('securityAnswer').value.trim()) return ['securityAnswer', 'Security answer is required.'];
     return null;
@@ -153,7 +339,12 @@
     clearError();
 
     var problem = check();
-    if (problem) { showError(problem[1]); $(problem[0]).focus(); return; }
+    if (problem) {
+      showError(problem[1]);
+      var target = (typeof problem[0] === 'string') ? $(problem[0]) : problem[0];
+      if (target && target.focus) target.focus();
+      return;
+    }
 
     // same name + same parent phone as a child already registered in this visit
     var key = dupKey(val('childName'), val('parentPhone'));
@@ -173,6 +364,7 @@
       parentName: val('parentName'),
       parentPhone: val('parentPhone'),
       parentEmail: val('parentEmail'),
+      pickups: pickupPayload(),
       securityQuestion: val('securityQuestion'),
       securityAnswer: $('securityAnswer').value.trim()
     };
@@ -193,7 +385,9 @@
           orgLabel: res.orgLabel || org.label || 'Organization',
           registeredAt: res.registeredAt || new Date().toISOString(),
           qrImage: res.qrImage || '',
-          qrCodeUrl: res.qrCodeUrl || ''
+          qrCodeUrl: res.qrCodeUrl || '',
+          pickupSaved: Array.isArray(res.pickupSaved) ? res.pickupSaved : [],
+          pickupFailed: Array.isArray(res.pickupFailed) ? res.pickupFailed : []
         };
         registered[key] = true;
         requestId = newRequestId();      // the next child gets a fresh ID
@@ -218,6 +412,25 @@
     $('vClass').textContent = card.classroom;
     $('vOrg').textContent = card.orgId;
     $('qrId').textContent = card.childId;
+
+    if (card.pickupSaved.length) {
+      $('vPickup').textContent = card.pickupSaved.join(', ');
+      $('pickupRow').classList.remove('hidden');
+    } else {
+      $('vPickup').textContent = '';
+      $('pickupRow').classList.add('hidden');
+    }
+    var warn = $('pickupWarn');
+    if (card.pickupFailed.length) {
+      warn.textContent = 'Your child is registered, but ' + card.pickupFailed.length +
+        ' pickup person' + (card.pickupFailed.length === 1 ? ' was' : 's were') +
+        ' not saved (' + card.pickupFailed.join('; ') + '). Please ask your children\'s department admin to add ' +
+        (card.pickupFailed.length === 1 ? 'this person.' : 'them.');
+      warn.classList.remove('hidden');
+    } else {
+      warn.textContent = '';
+      warn.classList.add('hidden');
+    }
 
     var img = $('qrImg'), ph = $('qrPh'), link = $('qrLink');
     link.textContent = '';
@@ -277,6 +490,7 @@
     var rows = [['Child ID', card.childId], ['Name', card.childName], ['Classroom', card.classroom]];
     if (card.orgName) rows.push([label, card.orgName]);
     rows.push([label + ' ID', card.orgId]);
+    if (card.pickupSaved.length) rows.push(['Pickup persons', card.pickupSaved.join(', ')]);
 
     var m = document.createElement('canvas').getContext('2d');
     m.font = '600 15px ' + FONT;
@@ -433,8 +647,9 @@
       'Child: ' + card.childName + '\n' +
       'ID: ' + card.childId + '\n' +
       l + ' ID: ' + card.orgId + '\n' +
-      'Classroom: ' + card.classroom + '\n\n' +
-      'Scan the QR code for quick check-in/check-out.';
+      'Classroom: ' + card.classroom + '\n' +
+      (card.pickupSaved.length ? 'Pickup persons: ' + card.pickupSaved.join(', ') + '\n' : '') +
+      '\nScan the QR code for quick check-in/check-out.';
   }
 
   function withBusy(btn, busyLabel, fn) {
@@ -526,7 +741,7 @@
       });
   }
 
-  /* ---------- register another child: keep parent details, clear child + security answer ---------- */
+  /* ---------- register another child: keep parent details and pickup persons, clear child + security answer ---------- */
   $('another').addEventListener('click', function () {
     ['childName', 'dob', 'age', 'classroom', 'securityAnswer'].forEach(function (id) { $(id).value = ''; });
     $('securityAnswer').type = 'password';
@@ -538,5 +753,6 @@
     $('childName').focus();
   });
 
+  updatePickupUi();
   checkLink();
 })();
