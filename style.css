@@ -94,6 +94,7 @@ h2.group {
 h2.group.first { margin-top: 8px; border-top: 0; padding-top: 0; }
 .lead { margin: 0 0 18px; color: var(--muted); font-size: .96rem; max-width: 60ch; }
 .hint { font-size: .84rem; color: var(--muted); margin: 6px 0 0; }
+.hint.first-hint { margin-bottom: 12px; }
 
 /* ---------- form ---------- */
 label { display: block; font-weight: 600; font-size: .9rem; margin: 16px 0 6px; }
@@ -140,6 +141,13 @@ input:focus-visible { outline: 3px solid rgba(26, 35, 126, .28); border-color: v
 .btn:hover:not(:disabled) { background: var(--brand-dark); }
 .btn.green { background: #2e7d32; }
 .btn.green:hover:not(:disabled) { background: #1b5e20; }
+.btn.outline {
+  margin-top: 12px;
+  color: var(--brand);
+  background: #fff;
+  border: 1.5px solid var(--brand);
+}
+.btn.outline:hover:not(:disabled) { background: #eef0fb; }
 .btn:focus-visible, .textbtn:focus-visible { outline: 3px solid rgba(26, 35, 126, .4); outline-offset: 2px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
@@ -155,6 +163,47 @@ input:focus-visible { outline: 3px solid rgba(26, 35, 126, .28); border-color: v
   cursor: pointer;
 }
 .textbtn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---------- authorized pickup persons ---------- */
+.pcard {
+  margin-top: 12px;
+  padding: 12px 14px 14px;
+  background: #fafbff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.phead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ptitle { font-weight: 600; font-size: .92rem; color: var(--brand); }
+.phead .textbtn { margin: 0; font-size: .88rem; color: var(--err); }
+.pbody { display: flex; gap: 12px; align-items: flex-start; margin-top: 6px; }
+.pphoto {
+  flex: none;
+  width: 84px;
+  height: 84px;
+  margin-top: 16px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #eef0f6;
+  border: 2px solid #e6a23c;
+  border-radius: 12px;
+  color: var(--muted);
+  font: inherit;
+  font-size: .72rem;
+  line-height: 1.25;
+  text-align: center;
+  cursor: pointer;
+}
+.pphoto.has-photo { border-color: var(--ok); }
+.pphoto:focus-visible { outline: 3px solid rgba(26, 35, 126, .4); outline-offset: 2px; }
+.pphoto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pfields { flex: 1; min-width: 0; }
 
 /* ---------- success: status banner ---------- */
 .banner {
@@ -178,6 +227,16 @@ input:focus-visible { outline: 3px solid rgba(26, 35, 126, .28); border-color: v
 }
 .banner strong { display: block; color: #145c32; }
 .banner small { color: var(--muted); }
+
+.warn {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  background: #fff4e5;
+  border: 1px solid #f5c26b;
+  color: #7a4a00;
+  border-radius: 8px;
+  font-size: .9rem;
+}
 
 /* ---------- success: registration card ---------- */
 .card {
