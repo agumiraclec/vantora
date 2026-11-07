@@ -66,6 +66,13 @@
       <label for="parentEmail">Parent email (optional)</label>
       <input id="parentEmail" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com" maxlength="120">
 
+      <h2 class="group">Authorized pickup persons</h2>
+      <p class="hint first-hint">Optional. People other than the parent who may bring or collect this child (maximum 3). Name and photo are required for each person; phone is optional.</p>
+
+      <div id="pickups"></div>
+
+      <button class="btn outline" id="addPickup" type="button">Add pickup person (0/3)</button>
+
       <h2 class="group">Security verification</h2>
 
       <label for="securityQuestion">Security question *</label>
@@ -96,6 +103,8 @@
       </div>
     </div>
 
+    <p class="warn hidden" id="pickupWarn" role="alert"></p>
+
     <div class="card" id="card">
       <div class="card-head">
         <svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true">
@@ -117,6 +126,10 @@
         <div class="crow"><span class="k" id="kOrgName"></span><span class="v" id="vOrgName"></span></div>
         <hr class="cdiv">
         <div class="crow"><span class="k" id="kOrg"></span><span class="v" id="vOrg"></span></div>
+        <div id="pickupRow" class="hidden">
+          <hr class="cdiv">
+          <div class="crow"><span class="k">Pickup persons</span><span class="v" id="vPickup"></span></div>
+        </div>
       </div>
 
       <div class="card-qr">
