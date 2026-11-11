@@ -128,12 +128,19 @@
     if (!API || API.indexOf('YOUR-') !== -1) {
       return Promise.reject(new Error('This page is not set up yet. Ask the admin to finish the setup.'));
     }
+    var NET_MSG = 'No internet connection. Please check your network and try again.';
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return Promise.reject(new Error(NET_MSG));
+    }
     // text/plain keeps this a "simple" request, so the browser skips the extra preflight round trip.
     return fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     })
+      // When the phone cannot reach the server the browser throws a technical error
+      // ("Failed to fetch", "Load failed", "NetworkError ..."). Show a plain message instead.
+      .catch(function () { throw new Error(NET_MSG); })
       .then(function (r) { return r.text(); })
       .then(function (t) {
         try { return JSON.parse(t); }
