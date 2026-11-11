@@ -27,6 +27,40 @@
   try { TOKEN = String(new URLSearchParams(window.location.search).get('t') || '').trim().toLowerCase(); } catch (e) {}
   var org = { name: '', label: 'Organization' };
 
+  /* ---------- classroom: School = dropdown, Church / other = manual input (same rule as the app) ---------- */
+  // Keep this list identical to _schoolClasses in child_registration_screen.dart and SCHOOL_CLASSES in PortalRegister.gs
+  var SCHOOL_CLASSES = [
+    'Day care', 'Creche', 'Pre-nursery',
+    'Nursery 1', 'Nursery 2', 'Nursery 3',
+    'Primary 1', 'Primary 2', 'Primary 3', 'Primary 4', 'Primary 5', 'Primary 6',
+    'JSS 1', 'JSS 2', 'JSS 3',
+    'SS 1', 'SS 2', 'SS 3'
+  ];
+
+  function isSchool() { return org.label === 'School'; }
+
+  function setupClassroom() {
+    var sel = $('classroomSelect'), txt = $('classroom');
+    if (isSchool()) {
+      if (sel.options.length <= 1) {
+        SCHOOL_CLASSES.forEach(function (c) {
+          var o = document.createElement('option');
+          o.value = c;
+          o.textContent = c;
+          sel.appendChild(o);
+        });
+      }
+      sel.classList.remove('hidden');
+      txt.classList.add('hidden');
+    } else {
+      sel.classList.add('hidden');
+      txt.classList.remove('hidden');
+    }
+  }
+
+  // The class chosen / typed for the current organization type
+  function classroomValue() { return isSchool() ? $('classroomSelect').value : val('classroom'); }
+
   /* ---------- date limits: not in the future, not more than 25 years ago ---------- */
   function pad(n) { return String(n).padStart(2, '0'); }
   function iso(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
@@ -321,7 +355,7 @@
     if (dob < MIN_DOB || dob > MAX_DOB) return ['dob', 'Please check the date of birth.'];
     var age = parseInt($('age').value, 10);
     if (isNaN(age) || age < 0 || age > 30) return ['age', 'Enter a valid age.'];
-    if (!val('classroom')) return ['classroom', 'Classroom is required.'];
+    if (!classroomValue()) return [isSchool() ? 'classroomSelect' : 'classroom', 'Classroom is required.'];
     if (!val('parentName')) return ['parentName', 'Parent name is required.'];
     if (val('parentPhone').replace(/\D/g, '').length < 10) return ['parentPhone', 'Enter a valid phone number.'];
     var em = val('parentEmail');
@@ -360,7 +394,7 @@
       childName: val('childName'),
       dateOfBirth: $('dob').value,
       age: parseInt($('age').value, 10),
-      classroom: val('classroom'),
+      classroom: classroomValue(),
       parentName: val('parentName'),
       parentPhone: val('parentPhone'),
       parentEmail: val('parentEmail'),
@@ -727,6 +761,7 @@
         }
         org.name = res.orgName || '';
         org.label = res.orgLabel || 'Organization';
+        setupClassroom();
         $('orgName').textContent = org.name || "Children's department";
         document.title = 'Vantora – Register your child' + (org.name ? ' – ' + org.name : '');
         if (!res.open) {
@@ -743,7 +778,7 @@
 
   /* ---------- register another child: keep parent details and pickup persons, clear child + security answer ---------- */
   $('another').addEventListener('click', function () {
-    ['childName', 'dob', 'age', 'classroom', 'securityAnswer'].forEach(function (id) { $(id).value = ''; });
+    ['childName', 'dob', 'age', 'classroom', 'classroomSelect', 'securityAnswer'].forEach(function (id) { $(id).value = ''; });
     $('securityAnswer').type = 'password';
     $('toggleAnswer').textContent = 'Show';
     card = null;
