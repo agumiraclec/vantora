@@ -107,7 +107,16 @@ input {
   border: 1.5px solid var(--line);
   border-radius: 8px;
 }
-input:focus-visible { outline: 3px solid rgba(26, 35, 126, .28); border-color: var(--brand); }
+select {
+  width: 100%;
+  padding: 12px 13px;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+}
+input:focus-visible, select:focus-visible { outline: 3px solid rgba(26, 35, 126, .28); border-color: var(--brand); }
 
 .pw { position: relative; }
 .pw input { padding-right: 72px; }
