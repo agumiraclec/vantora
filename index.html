@@ -53,6 +53,10 @@
       <p class="hint">Filled in automatically from the date of birth.</p>
 
       <label for="classroom">Classroom *</label>
+      <!-- Schools see the dropdown, churches and other organizations see the text box (app.js decides) -->
+      <select id="classroomSelect" class="hidden" required>
+        <option value="">Select class</option>
+      </select>
       <input id="classroom" type="text" autocomplete="off" autocapitalize="words" maxlength="60" required>
 
       <h2 class="group">Parent / guardian information</h2>
